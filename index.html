@@ -1,0 +1,451 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Telecom Churn Prediction Demo</title>
+    <style>
+        :root {
+            --primary-color: #0d9488; /* Teal */
+            --primary-hover: #0f766e;
+            --bg-color: #f3f4f6;
+            --card-bg: #ffffff;
+            --text-main: #1f2937;
+            --text-muted: #6b7280;
+            --border-color: #e5e7eb;
+            
+            --low-risk: #10b981;
+            --medium-risk: #f59e0b;
+            --high-risk: #ef4444;
+        }
+
+        * {
+            box-sizing: border-box;
+            margin: 0;
+            padding: 0;
+            font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        }
+
+        body {
+            background-color: var(--bg-color);
+            color: var(--text-main);
+            display: flex;
+            justify-content: center;
+            padding: 2rem 1rem;
+            min-height: 100vh;
+        }
+
+        .container {
+            max-width: 800px;
+            width: 100%;
+        }
+
+        .header {
+            text-align: center;
+            margin-bottom: 2rem;
+        }
+
+        .header h1 {
+            color: var(--primary-color);
+            margin-bottom: 0.5rem;
+        }
+
+        .header p {
+            color: var(--text-muted);
+        }
+
+        .card {
+            background-color: var(--card-bg);
+            border-radius: 8px;
+            box-shadow: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            padding: 2rem;
+            margin-bottom: 2rem;
+        }
+
+        .form-grid {
+            display: grid;
+            grid-template-columns: 1fr 1fr;
+            gap: 1.5rem;
+        }
+
+        @media (max-width: 600px) {
+            .form-grid {
+                grid-template-columns: 1fr;
+            }
+            body {
+                padding: 1rem 0.5rem;
+            }
+            .card {
+                padding: 1.5rem;
+            }
+        }
+
+        @media (max-width: 480px) {
+            .result-header {
+                flex-direction: column;
+                align-items: flex-start;
+                gap: 1rem;
+            }
+        }
+
+        .form-group {
+            display: flex;
+            flex-direction: column;
+        }
+
+        label {
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            font-size: 0.9rem;
+        }
+
+        input, select {
+            padding: 0.75rem;
+            border: 1px solid var(--border-color);
+            border-radius: 4px;
+            font-size: 1rem;
+            outline: none;
+            transition: border-color 0.2s;
+        }
+
+        input:focus, select:focus {
+            border-color: var(--primary-color);
+        }
+
+        .btn {
+            background-color: var(--primary-color);
+            color: white;
+            border: none;
+            padding: 1rem;
+            font-size: 1.1rem;
+            font-weight: 600;
+            border-radius: 4px;
+            cursor: pointer;
+            width: 100%;
+            margin-top: 1.5rem;
+            transition: background-color 0.2s;
+        }
+
+        .btn:hover {
+            background-color: var(--primary-hover);
+        }
+
+        /* Results Section */
+        #result-section {
+            display: none; /* Hidden until predicted */
+            animation: fadeIn 0.5s ease-in-out;
+        }
+
+        @keyframes fadeIn {
+            from { opacity: 0; transform: translateY(10px); }
+            to { opacity: 1; transform: translateY(0); }
+        }
+
+        .result-header {
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+            border-bottom: 1px solid var(--border-color);
+            padding-bottom: 1rem;
+            margin-bottom: 1.5rem;
+        }
+
+        .risk-badge {
+            padding: 0.5rem 1rem;
+            border-radius: 999px;
+            font-weight: bold;
+            font-size: 1.2rem;
+            color: white;
+        }
+
+        .metric-label {
+            font-size: 0.9rem;
+            color: var(--text-muted);
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+        }
+
+        .metric-value {
+            font-size: 1.5rem;
+            font-weight: bold;
+            margin-top: 0.25rem;
+        }
+
+        .explanation-box {
+            background-color: #f8fafc;
+            border-left: 4px solid var(--primary-color);
+            padding: 1rem;
+            margin-bottom: 1.5rem;
+            border-radius: 0 4px 4px 0;
+            line-height: 1.5;
+        }
+
+        .action-panel {
+            background-color: #eff6ff;
+            border: 1px solid #bfdbfe;
+            border-radius: 6px;
+            padding: 1.5rem;
+        }
+
+        .action-panel h3 {
+            color: #1e3a8a;
+            margin-bottom: 0.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+        }
+
+        .revenue-impact {
+            margin-top: 1rem;
+            padding-top: 1rem;
+            border-top: 1px dashed #93c5fd;
+            font-weight: 600;
+            color: #b91c1c;
+        }
+
+
+
+    </style>
+</head>
+<body>
+
+    <div class="container">
+        <div class="header">
+            <h1>Telecom Churn Intelligence</h1>
+            <p>Predict customer risk, calculate revenue impact, and discover retention strategies.</p>
+        </div>
+
+        <!-- Input Form -->
+        <div class="card">
+            <form id="churn-form">
+                <div class="form-grid">
+                    <div class="form-group">
+                        <label for="tenure">Tenure (months)</label>
+                        <input type="number" id="tenure" min="0" placeholder="e.g. 12" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="contract">Contract Type</label>
+                        <select id="contract" required>
+                            <option value="month-to-month">Month-to-Month</option>
+                            <option value="one-year">One-Year</option>
+                            <option value="two-year">Two-Year</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="charges">Monthly Charges (₦)</label>
+                        <input type="number" id="charges" min="0" placeholder="e.g. 5000" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="internet">Internet Service</label>
+                        <select id="internet" required>
+                            <option value="yes">Yes</option>
+                            <option value="no">No</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="calls">Customer Service Calls (last 3 months)</label>
+                        <input type="number" id="calls" min="0" placeholder="e.g. 2" required>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="payment">Payment Method</label>
+                        <select id="payment" required>
+                            <option value="manual">Manual (Cash/USSD)</option>
+                            <option value="automatic">Automatic (Bank/Credit Card)</option>
+                        </select>
+                    </div>
+                </div>
+
+                <button type="submit" class="btn">Predict Churn Risk</button>
+            </form>
+        </div>
+
+        <!-- Results Section -->
+        <div id="result-section" class="card">
+            <div class="result-header">
+                <div>
+                    <div class="metric-label">Probability Score</div>
+                    <div class="metric-value" id="probability-score">0.00</div>
+                </div>
+                <div id="risk-badge" class="risk-badge">
+                    Unknown
+                </div>
+            </div>
+
+            <div class="explanation-box">
+                <strong>Why?</strong> <span id="explanation-text">...</span>
+            </div>
+
+            <!-- New Feature: Action & Revenue Panel -->
+            <div class="action-panel" id="action-panel">
+                <h3>💡 Suggested Retention Action</h3>
+                <p id="suggested-action">...</p>
+                <div class="revenue-impact" id="revenue-impact">
+                    Estimated Annual Revenue at Risk: ₦0
+                </div>
+            </div>
+        </div>
+
+    </div>
+
+    <script>
+        document.getElementById('churn-form').addEventListener('submit', function(e) {
+            e.preventDefault();
+
+            // 1. Gather Inputs
+            const tenure = parseInt(document.getElementById('tenure').value);
+            const contract = document.getElementById('contract').value;
+            const charges = parseFloat(document.getElementById('charges').value);
+            const internet = document.getElementById('internet').value;
+            const calls = parseInt(document.getElementById('calls').value);
+            const payment = document.getElementById('payment').value;
+
+            // 2. Initial Rule-Based Model Scoring
+            let score = 0;
+            let explanationParts = [];
+
+            // Tenure Rules
+            if (tenure < 6) {
+                score += 0.25;
+                explanationParts.push("very short tenure");
+            } else if (tenure < 12) {
+                score += 0.15;
+                explanationParts.push("short tenure");
+            } else if (tenure < 24) {
+                score += 0.05;
+            } else {
+                explanationParts.push("loyal tenure");
+            }
+
+            // Contract Rules
+            if (contract === 'month-to-month') {
+                score += 0.30;
+                explanationParts.push("month-to-month commitment");
+            } else if (contract === 'one-year') {
+                score += 0.10;
+            } else {
+                explanationParts.push("stable two-year contract");
+            }
+
+            // Monthly Charges Rules
+            if (charges > 8000) { // Scaled up to a realistic Naira value for demo purposes (e.g., > 8k)
+                score += 0.25;
+                explanationParts.push("high monthly charges");
+            } else if (charges > 5000) {
+                score += 0.15;
+                explanationParts.push("above-average charges");
+            }
+
+            // Internet Service Rules
+            if (internet === 'yes') {
+                score += 0.05; 
+            }
+
+            // Customer Service Calls Rules
+            if (calls >= 4) {
+                score += 0.20;
+                explanationParts.push("excessive support tickets");
+            } else if (calls === 3) {
+                score += 0.15;
+                explanationParts.push("frequent support issues");
+            } else if (calls === 2) {
+                score += 0.10;
+            }
+
+            // Payment Method Rules
+            if (payment === 'manual') {
+                score += 0.10;
+                explanationParts.push("manual payment friction");
+            } else {
+                explanationParts.push("seamless auto-payments");
+            }
+
+            // 3. Clamp and Determine Risk Level
+            score = Math.max(0, Math.min(1, score)); // Clamp between 0 and 1
+            const scoreFormatted = score.toFixed(2);
+            
+            let riskLevel = "";
+            let riskColor = "";
+            
+            if (score < 0.40) {
+                riskLevel = "Low Risk";
+                riskColor = "var(--low-risk)";
+            } else if (score < 0.70) {
+                riskLevel = "Medium Risk";
+                riskColor = "var(--medium-risk)";
+            } else {
+                riskLevel = "High Risk";
+                riskColor = "var(--high-risk)";
+            }
+
+            // 4. Format Explanation String
+            let explanationString = "Customer profile indicates " + riskLevel.toLowerCase() + " due to factors like: " + explanationParts.join(", ") + ".";
+
+            // 5. Calculate Revenue at Risk (New Feature)
+            const annualRevenue = charges * 12;
+
+            // 6. Determine Next Best Action (New Feature)
+            let suggestedAction = "";
+            let actionPanelColor = "#eff6ff";
+            let actionBorderColor = "#bfdbfe";
+
+            if (score < 0.40) {
+                suggestedAction = "No immediate retention action required. Include in standard loyalty campaigns (e.g., automated birthday texts) to maintain relationship.";
+                actionPanelColor = "#f0fdf4"; // Light green
+                actionBorderColor = "#bbf7d0";
+            } else {
+                // If Medium/High risk, provide targeted action based on highest risk driver
+                if (calls >= 3) {
+                    suggestedAction = "🛠️ <strong>Proactive Support Escalation:</strong> Customer is highly frustrated. Assign to a senior success agent for an outbound apology call and offer a ₦" + (charges * 0.5).toFixed(0) + " data credit.";
+                } else if (charges > 8000) {
+                    suggestedAction = "💰 <strong>Price Sensitivity:</strong> Offer a targeted 15% discount for 3 months, or proactively reach out to downgrade them to a slightly cheaper plan to prevent complete churn.";
+                } else if (contract === 'month-to-month') {
+                    suggestedAction = "📝 <strong>Contract Upsell:</strong> Send an SMS campaign offering the first month free if they upgrade to a 1-Year locked-in contract today.";
+                } else if (payment === 'manual') {
+                    suggestedAction = "💳 <strong>Payment Friction:</strong> Send USSD/SMS prompt offering a 2GB data bonus if they link their debit card for automatic monthly billing.";
+                } else {
+                    suggestedAction = "📞 <strong>General Check-in:</strong> Risk is elevated but primary driver is unclear. Trigger an automated NPS survey to uncover hidden dissatisfaction.";
+                }
+                actionPanelColor = "#fef2f2"; // Light red
+                actionBorderColor = "#fecaca";
+            }
+
+            // 7. Update the UI
+            document.getElementById('probability-score').textContent = scoreFormatted;
+            
+            const badge = document.getElementById('risk-badge');
+            badge.textContent = riskLevel;
+            badge.style.backgroundColor = riskColor;
+
+            document.getElementById('explanation-text').textContent = explanationString;
+            
+            // Update Action Panel
+            const actionPanel = document.getElementById('action-panel');
+            actionPanel.style.backgroundColor = actionPanelColor;
+            actionPanel.style.borderColor = actionBorderColor;
+            
+            document.getElementById('suggested-action').innerHTML = suggestedAction;
+
+            const revenueEl = document.getElementById('revenue-impact');
+            if (score >= 0.40) {
+                revenueEl.style.display = "block";
+                revenueEl.textContent = "Estimated Annual Revenue at Risk: ₦" + annualRevenue.toLocaleString();
+            } else {
+                revenueEl.style.display = "none"; // Don't highlight revenue risk if they aren't churning
+            }
+
+            // Show Results
+            document.getElementById('result-section').style.display = 'block';
+            
+            // Scroll to results
+            document.getElementById('result-section').scrollIntoView({ behavior: 'smooth' });
+        });
+    </script>
+</body>
+</html>
+
+<git 
